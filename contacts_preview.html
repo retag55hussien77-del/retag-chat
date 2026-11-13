@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#170d14">
+<title>Retag Chat — Contacts Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#100b0f;--panel:#1b1118;--line:#492236;--text:#f8edf2;--muted:#c5aab6;--wine:#8f2d50;--pink:#e16d9b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Tahoma,sans-serif}.app{max-width:650px;min-height:100dvh;margin:auto;padding:14px;display:flex;flex-direction:column;gap:12px}.head,.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}.head{display:flex;justify-content:space-between;align-items:center;gap:10px}.brand{font-size:21px;font-weight:bold}.muted,small{color:var(--muted)}h2{font-size:16px;margin:0 0 10px}.field{display:flex;flex-direction:column;gap:6px;margin:9px 0}.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:11px;padding:12px;background:#120d11;color:var(--text);font:inherit}.field textarea{min-height:70px;resize:vertical}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row>*{flex:1}.btn{border:0;border-radius:11px;padding:11px 14px;background:var(--wine);color:white;font-weight:bold;cursor:pointer}.btn.secondary{background:#35202b;border:1px solid var(--line)}.btn:disabled{opacity:.55}.status{padding:10px 12px;border-radius:10px;background:#2a1b24;color:#f4d9e5;font-size:13px;line-height:1.6}.status.error{background:#3a1b20;color:#ffd7d7}.person{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:12px 0;border-bottom:1px solid var(--line)}.person:last-child{border:0}.person strong{display:block}.person small{display:block;margin-top:4px}.empty{text-align:center;padding:25px 8px;color:var(--muted);font-size:13px}.foot{font-size:11px;color:var(--muted);line-height:1.7}a{color:#f39abd}
+</style></head>
+<body><main class="app">
+<header class="head"><div><div class="brand">Retag Chat ♡</div><small>معاينة الحسابات وجهات الاتصال</small></div><button id="signOut" class="btn secondary">خروج</button></header>
+<section class="panel"><h2>حسابك الشخصي</h2><div id="account" class="muted">جارٍ التحقق من تسجيل الدخول…</div>
+<div class="field"><label for="displayName">الاسم الظاهر</label><input id="displayName" maxlength="60" placeholder="اكتبي الاسم اللي يظهر للناس"></div>
+<div class="field"><label for="username">اسم المستخدم</label><input id="username" maxlength="30" placeholder="مثال: retag_22" autocomplete="off"></div>
+<div class="field"><label for="bio">نبذة (اختياري)</label><textarea id="bio" maxlength="160" placeholder="اكتبي نبذة قصيرة"></textarea></div>
+<button id="save" class="btn">حفظ الملف الشخصي</button></section>
+<section class="panel"><h2>البحث عن حسابات</h2><div class="field"><input id="search" placeholder="ابحثي بالاسم أو اسم المستخدم" maxlength="60"></div><button id="refresh" class="btn secondary">تحديث القائمة</button><div id="people"><div class="empty">سجّلي الدخول لعرض الحسابات.</div></div></section>
+<div id="status" class="status">سجّلي الدخول لبدء الاستخدام.</div>
+<div class="foot">معاينة تجريبية منفصلة. تعرض فقط الحسابات التي أنشأت ملفًا شخصيًا في جدول public.profiles. لا نقرأ دفتر أرقام الهاتف ولا نعرض البريد الإلكتروني أو أرقام الهواتف. يلزم أن تسمح سياسات RLS للمستخدمين المسجلين بقراءة الملفات الشخصية. اسم المستخدم ليس مضمون التفرد إلا بعد إضافة قيد UNIQUE ومراجعته على قاعدة البيانات.</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./retag-auth.js"></script>
+<script>
+"use strict";
+const auth=window.RetagAuth,client=auth.client,$=id=>document.getElementById(id);let me=null,profiles=[];
+function status(message,error){$("status").textContent=message;$("status").classList.toggle("error",Boolean(error));}
+function safeText(el,value){el.textContent=value||"";}
+async function loadOwnProfile(){
+ const {data,error}=await client.from("profiles").select("id,username,display_name,bio,avatar_url").eq("id",me.id).maybeSingle();
+ if(error)throw error;
+ $("displayName").value=(data&&data.display_name)||me.user_metadata?.display_name||"";
+ $("username").value=(data&&data.username)||"";
+ $("bio").value=(data&&data.bio)||"";
+}
+async function saveProfile(){
+ const display_name=$("displayName").value.trim(),username=$("username").value.trim().replace(/^@/,""),bio=$("bio").value.trim();
+ if(!display_name){status("اكتبي الاسم الظاهر الأول.",true);return;}
+ if(username&&!/^[a-zA-Z0-9_.]{3,30}$/.test(username)){status("اسم المستخدم لازم يكون من 3 إلى 30 حرفًا أو رقمًا، ومسموح _ و .",true);return;}
+ $("save").disabled=true;
+ try{
+  const {data:existing,error:readError}=await client.from("profiles").select("id").eq("id",me.id).maybeSingle();if(readError)throw readError;
+  const payload={username:username||null,display_name,bio:bio||null};
+  const result=existing?await client.from("profiles").update(payload).eq("id",me.id):await client.from("profiles").insert({id:me.id,...payload});
+  if(result.error)throw result.error;
+  status("اتحفظ ملفك الشخصي بنجاح.");await loadPeople();
+ }catch(e){status("تعذّر حفظ الملف الشخصي: "+(e.message||"خطأ غير معروف"),true);}
+ finally{$("save").disabled=false;}
+}
+function renderPeople(){
+ const term=$("search").value.trim().toLocaleLowerCase();const list=$("people");list.replaceChildren();
+ const filtered=profiles.filter(p=>p.id!==me.id&&[p.display_name,p.username,p.bio].some(v=>String(v||"").toLocaleLowerCase().includes(term)));
+ if(!filtered.length){const empty=document.createElement("div");empty.className="empty";empty.textContent=term?"مفيش حسابات مطابقة.":"لسه مفيش حسابات تانية عاملة ملف شخصي.";list.appendChild(empty);return;}
+ filtered.forEach(p=>{
+  const item=document.createElement("div");item.className="person";const info=document.createElement("div");const name=document.createElement("strong");name.textContent=p.display_name||"مستخدم Retag";const handle=document.createElement("small");handle.textContent=p.username?"@"+p.username:"بدون اسم مستخدم";info.append(name,handle);
+  const open=document.createElement("button");open.className="btn";open.textContent="ابدئي محادثة";open.addEventListener("click",()=>{location.href="./messages_preview.html?to="+encodeURIComponent(p.id);});item.append(info,open);list.appendChild(item);
+ });
+}
+async function loadPeople(){
+ $("refresh").disabled=true;
+ try{const {data,error}=await client.from("profiles").select("id,username,display_name,bio,avatar_url").order("display_name",{ascending:true}).limit(200);if(error)throw error;profiles=data||[];renderPeople();status("تم تحديث قائمة الحسابات.");}
+ catch(e){status("تعذّر تحميل الحسابات: "+(e.message||"خطأ غير معروف")+" — راجعي جدول profiles وسياسات RLS.",true);}
+ finally{$("refresh").disabled=false;}
+}
+$("save").addEventListener("click",saveProfile);$("refresh").addEventListener("click",loadPeople);$("search").addEventListener("input",renderPeople);
+$("signOut").addEventListener("click",async()=>{const {error}=await auth.signOut();if(error)status(error.message,true);else location.href="./account_preview.html";});
+auth.getSession().then(async({data,error})=>{
+ if(error){status("تعذّر التحقق من الجلسة: "+error.message,true);return;}me=data.session&&data.session.user;
+ if(!me){$("account").textContent="مش مسجّلة الدخول.";status("افتحي صفحة الحسابات وسجّلي الدخول الأول.",true);$("save").disabled=$("refresh").disabled=true;return;}
+ $("account").textContent=me.email||"حساب مسجّل";
+ try{await loadOwnProfile();await loadPeople();}catch(e){status("تعذّر تحميل الملف الشخصي: "+(e.message||"خطأ غير معروف"),true);}
+});
+auth.onAuthStateChange((_event,session)=>{if(!session){me=null;$("account").textContent="تم تسجيل الخروج.";profiles=[];renderPeople();}});
+</script></body></html>
