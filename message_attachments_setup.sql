@@ -84,8 +84,8 @@ on public.message_attachments for delete
 to authenticated
 using (uploader_id = auth.uid());
 
+revoke all on public.message_attachments from public, anon, authenticated;
 grant select, insert, delete on public.message_attachments to authenticated;
-revoke update on public.message_attachments from authenticated;
 
 -- Uploads remain restricted to the uploader's own UID folder.
 -- Recipients may download only an object that is attached to a message addressed to them.
