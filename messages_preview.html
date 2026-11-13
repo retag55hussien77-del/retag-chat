@@ -36,6 +36,7 @@ const client = auth.client;
 const $ = (id) => document.getElementById(id);
 let currentUser = null;
 let channel = null;
+let subscribedRecipient = null;
 let loading = false;
 
 function showStatus(message, isError) {
@@ -94,7 +95,7 @@ async function loadConversation() {
     setComposeEnabled(true);
     $("connection").textContent = "المحادثة جاهزة";
     showStatus("تم تحميل المحادثة. جرّبي إرسال رسالة قصيرة.");
-    subscribeToConversation(recipient);
+    if (subscribedRecipient !== recipient) subscribeToConversation(recipient);
   } catch (error) {
     setComposeEnabled(false);
     showStatus("تعذّر تحميل الرسائل: " + (error.message || "خطأ غير معروف") + " — راجعي جدول messages وصلاحيات RLS.", true);
@@ -105,6 +106,7 @@ async function loadConversation() {
 }
 function subscribeToConversation(recipient) {
   if (channel) client.removeChannel(channel);
+  subscribedRecipient = recipient;
   channel = client.channel("retag-messages-" + currentUser.id + "-" + recipient)
     .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
       const row = payload.new || payload.old;
@@ -168,6 +170,7 @@ auth.onAuthStateChange((_event, session) => {
     $("account").textContent = "تم تسجيل الخروج.";
     if (channel) client.removeChannel(channel);
     channel = null;
+    subscribedRecipient = null;
   }
 });
 </script>
