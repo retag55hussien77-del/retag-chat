@@ -38,6 +38,8 @@ let currentUser = null;
 let channel = null;
 let subscribedRecipient = null;
 let loading = false;
+const requestedRecipient = new URLSearchParams(location.search).get("to");
+if (requestedRecipient && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedRecipient)) $("recipient").value = requestedRecipient;
 
 function showStatus(message, isError) {
   const el = $("status");
