@@ -51,10 +51,9 @@
     <p class="foot">نسخة اختبار منفصلة للحسابات — لا تغيّر صفحة التطبيق الأساسية أو بياناتها.</p>
   </main>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="./retag-auth.js"></script>
   <script>
-    const SUPABASE_URL = "https://xyozmkrwapfhozdfsasg.supabase.co";
-    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E-vBSfLso7SYBmPhAkt-aA_lMgBuzKr";
-    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const client = window.RetagAuth.client;
     const $ = (id) => document.getElementById(id);
     let mode = "login";
     function showMessage(text, type) {
@@ -92,10 +91,7 @@
         if (mode === "signup") {
           const displayName = $("displayName").value.trim();
           if (!displayName) throw new Error("اكتبي الاسم الظاهر أولًا.");
-          const { data, error } = await client.auth.signUp({
-            email, password,
-            options: { data: { display_name: displayName } }
-          });
+          const { data, error } = await window.RetagAuth.signUp(email, password, displayName);
           if (error) throw error;
           if (data.session && data.user) {
             renderSession(data.user);
@@ -104,7 +100,7 @@
             showMessage("تم إرسال طلب إنشاء الحساب. افتحي رسالة التأكيد في بريدك الإلكتروني، وبعدها ارجعي وسجّلي الدخول.", "ok");
           }
         } else {
-          const { data, error } = await client.auth.signInWithPassword({ email, password });
+          const { data, error } = await window.RetagAuth.signIn(email, password);
           if (error) throw error;
           renderSession(data.user);
           showMessage("تم تسجيل الدخول بنجاح.", "ok");
@@ -117,15 +113,18 @@
       }
     });
     $("logoutBtn").addEventListener("click", async () => {
-      const { error } = await client.auth.signOut();
+      const { error } = await window.RetagAuth.signOut();
       if (error) showMessage(error.message, "error");
       else {
         renderSession(null);
         showMessage("تم تسجيل الخروج من هذا الجهاز.", "ok");
       }
     });
-    client.auth.getSession().then(({ data }) => renderSession(data.session?.user || null));
-    client.auth.onAuthStateChange((_event, session) => renderSession(session?.user || null));
+    window.RetagAuth.getSession().then(({ data, error }) => {
+      if (error) showMessage(error.message, "error");
+      renderSession(data?.session?.user || null);
+    });
+    window.RetagAuth.onAuthStateChange((_event, session) => renderSession(session?.user || null));
   </script>
 </body>
 </html>
