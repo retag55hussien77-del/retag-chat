@@ -1,0 +1,140 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#170d14">
+<title>Retag Chat — Image Attachments Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#100b0f;--panel:#1b1118;--line:#492236;--text:#f8edf2;--muted:#c5aab6;--wine:#8f2d50;--pink:#e16d9b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Tahoma,sans-serif}.app{max-width:650px;min-height:100dvh;margin:auto;display:flex;flex-direction:column;padding:14px;gap:12px}.head,.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-size:21px;font-weight:bold}.muted,small{color:var(--muted)}.panel h2{font-size:16px;margin:0 0 10px}.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}.field input{width:100%;min-width:0;border:1px solid var(--line);border-radius:11px;padding:12px;background:#120d11;color:var(--text);font-size:14px}.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}.row input{flex:1;min-width:0}.btn{border:0;border-radius:11px;padding:11px 14px;background:var(--wine);color:white;font-weight:bold;cursor:pointer}.btn.secondary{background:#35202b;border:1px solid var(--line)}.btn:disabled{opacity:.55;cursor:not-allowed}.status{padding:10px 12px;border-radius:10px;background:#2a1b24;color:#f4d9e5;font-size:13px;line-height:1.6}.status.error{background:#3a1b20;color:#ffd7d7}.messages{flex:1;min-height:260px;max-height:55vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:12px;background:#140e13;border:1px solid var(--line);border-radius:15px}.message{max-width:88%;padding:10px 12px;border-radius:12px;line-height:1.5;overflow-wrap:anywhere}.mine{align-self:flex-start;background:#542139;border-top-right-radius:3px}.theirs{align-self:flex-end;background:#292128;border-top-left-radius:3px}.meta{font-size:10px;color:#d6b9c6;margin-top:5px}.message img{display:block;max-width:min(100%,260px);max-height:300px;object-fit:contain;border-radius:9px;margin-top:7px}.empty{text-align:center;color:var(--muted);padding:40px 10px;font-size:13px}.compose{display:flex;flex-direction:column;gap:8px}.compose input[type=text]{width:100%;border:1px solid var(--line);border-radius:24px;padding:13px 15px;background:var(--panel);color:var(--text);font-size:14px}.compose input[type=file]{width:100%;color:var(--muted);font-size:13px}.foot{font-size:11px;color:var(--muted);line-height:1.7}.hidden{display:none!important}
+</style>
+</head>
+<body>
+<main class="app">
+<header class="head"><div><div class="brand">Retag Chat ♡</div><small>معاينة الصور الخاصة داخل المحادثة</small></div><button id="signOut" class="btn secondary">خروج</button></header>
+<section class="panel">
+<h2>الحساب الحالي</h2><div id="account" class="muted">جارٍ التحقق من تسجيل الدخول…</div>
+<div class="field"><label for="recipient">UUID حساب المستلم</label><input id="recipient" autocomplete="off" placeholder="UUID حساب الاختبار الآخر"></div>
+<div class="row"><button id="load" class="btn secondary">تحميل المحادثة</button><span id="connection" class="muted">غير متصل</span></div>
+</section>
+<div id="status" class="status">سجّلي الدخول أولًا. الصور تحتاج جدول message_attachments وسياسات SQL المراجعة.</div>
+<section id="messages" class="messages"><div class="empty">سجّلي الدخول واكتبي UUID حساب تاني.</div></section>
+<form id="compose" class="compose">
+<input id="message" type="text" maxlength="1000" autocomplete="off" placeholder="اكتبي رسالة (اختياري مع الصورة)…" disabled>
+<div class="row"><input id="image" type="file" accept="image/jpeg,image/png,image/webp,image/gif" disabled><button id="send" class="btn" disabled>إرسال</button></div>
+<small>صور JPG / PNG / WEBP / GIF فقط — بحد أقصى 10 ميجابايت.</small>
+</form>
+<div class="foot">صفحة اختبار منفصلة وليست جزءًا من التطبيق الأساسي. التخزين يظل Private؛ لا تُنشأ روابط عامة. يلزم تطبيق migration المراجع على Supabase بعد تدقيق السياسات الحالية. لم يتم تنفيذ SQL أو اختبار الاتصال الحقيقي.</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./retag-auth.js"></script>
+<script>
+"use strict";
+const auth=window.RetagAuth, client=auth.client, $=id=>document.getElementById(id);
+let currentUser=null, channel=null, activeRecipient=null, busy=false, objectUrls=[];
+const MAX_BYTES=10*1024*1024;
+const ALLOWED=new Set(["image/jpeg","image/png","image/webp","image/gif"]);
+function status(message,error){$("status").textContent=message;$("status").classList.toggle("error",Boolean(error));}
+function uuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);}
+function enable(value){$("message").disabled=!value;$("image").disabled=!value;$("send").disabled=!value;}
+function clearUrls(){objectUrls.forEach(URL.revokeObjectURL);objectUrls=[];}
+function addText(parent,tag,className,value){const el=document.createElement(tag);if(className)el.className=className;el.textContent=value;parent.appendChild(el);return el;}
+async function renderMessages(rows){
+ const box=$("messages");clearUrls();box.replaceChildren();
+ if(!rows.length){addText(box,"div","empty","مفيش رسائل لسه. ابعتي أول رسالة.");return;}
+ const ids=rows.map(r=>r.id);
+ let attachments=[];
+ const {data,error}=await client.from("message_attachments").select("id,message_id,uploader_id,storage_path,media_type,byte_size,created_at").in("message_id",ids);
+ if(error) throw new Error("تعذّر قراءة مرفقات الصور. غالبًا جدول message_attachments أو سياسات RLS لم تُجهّز بعد: "+error.message);
+ attachments=data||[];
+ const byMessage=new Map();
+ attachments.forEach(a=>{if(!byMessage.has(a.message_id))byMessage.set(a.message_id,[]);byMessage.get(a.message_id).push(a);});
+ for(const row of rows){
+  const bubble=document.createElement("article");bubble.className="message "+(row.sender_id===currentUser.id?"mine":"theirs");
+  addText(bubble,"div","",row.content||"");
+  for(const item of (byMessage.get(row.id)||[])){
+   const {data:file,error:downloadError}=await client.storage.from("chat-images").download(item.storage_path);
+   if(downloadError){addText(bubble,"div","meta","الصورة غير متاحة لهذا الحساب: "+downloadError.message);continue;}
+   const url=URL.createObjectURL(file);objectUrls.push(url);
+   const img=document.createElement("img");img.src=url;img.alt="صورة مرفقة";img.loading="lazy";bubble.appendChild(img);
+  }
+  const date=row.created_at?new Date(row.created_at):new Date();
+  addText(bubble,"div","meta",date.toLocaleString("ar-EG"));box.appendChild(bubble);
+ }
+ box.scrollTop=box.scrollHeight;
+}
+async function loadConversation(){
+ if(!currentUser){status("سجّلي الدخول الأول.",true);return;}
+ const recipient=$("recipient").value.trim();
+ if(!uuid(recipient)||recipient===currentUser.id){status("اكتبي UUID صحيح لحساب مختلف.",true);return;}
+ if(busy)return;busy=true;$("load").disabled=true;status("جارٍ تحميل المحادثة والصور…");
+ try{
+  const {data,error}=await client.from("messages").select("id,sender_id,receiver_id,content,created_at")
+   .or("and(sender_id.eq."+currentUser.id+",receiver_id.eq."+recipient+"),and(sender_id.eq."+recipient+",receiver_id.eq."+currentUser.id+")")
+   .order("created_at",{ascending:true}).limit(100);
+  if(error)throw error;
+  await renderMessages(data||[]);enable(true);$("connection").textContent="المحادثة جاهزة";
+  status("تم تحميل الرسائل. الصور تظهر فقط إذا كانت سجلات المرفقات وسياسات الوصول جاهزة.");
+  if(activeRecipient!==recipient)subscribe(recipient);
+ }catch(e){enable(false);status(e.message||"حصل خطأ أثناء تحميل المحادثة.",true);}
+ finally{busy=false;$("load").disabled=false;}
+}
+function subscribe(recipient){
+ if(channel)client.removeChannel(channel);activeRecipient=recipient;
+ channel=client.channel("retag-attachments-"+currentUser.id+"-"+recipient)
+ .on("postgres_changes",{event:"*",schema:"public",table:"messages"},payload=>{
+  const r=payload.new||payload.old;if(!r)return;
+  if((r.sender_id===currentUser.id&&r.receiver_id===recipient)||(r.sender_id===recipient&&r.receiver_id===currentUser.id))loadConversation();
+ })
+ .on("postgres_changes",{event:"*",schema:"public",table:"message_attachments"},payload=>{
+  const r=payload.new||payload.old;if(r)loadConversation();
+ })
+ .subscribe(state=>{$("connection").textContent=state==="SUBSCRIBED"?"متصل لحظيًا":state;});
+}
+$("load").addEventListener("click",loadConversation);
+$("compose").addEventListener("submit",async event=>{
+ event.preventDefault();if(!currentUser||busy)return;
+ const recipient=$("recipient").value.trim(),file=$("image").files[0]||null,text=$("message").value.trim();
+ if(!uuid(recipient)||recipient===currentUser.id){status("اكتبي UUID صحيح لحساب مختلف.",true);return;}
+ if(!text&&!file){status("اكتبي رسالة أو اختاري صورة.",true);return;}
+ if(file&&(!ALLOWED.has(file.type)||file.size<=0||file.size>MAX_BYTES)){status("نوع الصورة غير مدعوم أو حجمها أكبر من 10 ميجابايت.",true);return;}
+ busy=true;enable(false);status(file?"جارٍ إرسال الرسالة ورفع الصورة بأمان…":"جارٍ إرسال الرسالة…");
+ let uploadedPath=null;
+ try{
+  const {data:message,error:messageError}=await client.from("messages").insert({
+   sender_id:currentUser.id,receiver_id:recipient,content:text||(file?"📷 صورة":"")
+  }).select("id").single();
+  if(messageError)throw messageError;
+  if(file){
+   const ext=({ "image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif"})[file.type];
+   const path=currentUser.id+"/"+crypto.randomUUID()+"."+ext;
+   const {error:uploadError}=await client.storage.from("chat-images").upload(path,file,{contentType:file.type,upsert:false});
+   if(uploadError)throw new Error("اتسجلت الرسالة لكن رفع الصورة فشل: "+uploadError.message);
+   uploadedPath=path;
+   const {error:recordError}=await client.from("message_attachments").insert({
+    message_id:message.id,uploader_id:currentUser.id,storage_path:path,media_type:file.type,byte_size:file.size
+   });
+   if(recordError)throw new Error("اترفعت الصورة لكن ربطها بالرسالة فشل. احتفظي برسالة الخطأ لإصلاح السجل: "+recordError.message);
+  }
+  $("message").value="";$("image").value="";status("تم إرسال الرسالة"+(file?" والصورة.":"."));await loadConversation();
+ }catch(e){
+  status((e.message||"فشل الإرسال.")+(uploadedPath?" مسار الملف المرفوع يحتاج تنظيفًا بعد مراجعة الخطأ.":""),true);
+ }finally{busy=false;enable(Boolean(activeRecipient));}
+});
+$("signOut").addEventListener("click",async()=>{const {error}=await auth.signOut();if(error)status(error.message,true);else location.href="./account_preview.html";});
+auth.getSession().then(({data,error})=>{
+ if(error){status("تعذّر التحقق من الجلسة: "+error.message,true);return;}
+ currentUser=data.session&&data.session.user;
+ if(!currentUser){$("account").textContent="مش مسجّلة الدخول.";enable(false);status("افتحي صفحة الحسابات وسجّلي الدخول الأول.",true);return;}
+ $("account").textContent=(currentUser.email||"حساب مسجّل")+" — "+currentUser.id;
+ status("تم تسجيل الدخول. اكتبي UUID حساب تاني لتحميل المحادثة.");
+});
+auth.onAuthStateChange((_event,session)=>{
+ currentUser=session&&session.user;
+ if(!currentUser){enable(false);$("account").textContent="تم تسجيل الخروج.";if(channel)client.removeChannel(channel);channel=null;activeRecipient=null;clearUrls();}
+});
+window.addEventListener("beforeunload",clearUrls);
+</script>
+</body>
+</html>
