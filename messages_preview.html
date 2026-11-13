@@ -1,0 +1,175 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#170d14">
+<title>Retag Chat — Messages Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#100b0f;--panel:#1b1118;--line:#492236;--text:#f8edf2;--muted:#c5aab6;--wine:#8f2d50;--pink:#e16d9b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Tahoma,sans-serif}.app{max-width:620px;min-height:100dvh;margin:auto;display:flex;flex-direction:column;padding:14px;gap:12px}.head,.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:14px}.head{display:flex;justify-content:space-between;align-items:center;gap:12px}.brand{font-size:21px;font-weight:bold}.muted,small{color:var(--muted)}.panel h2{font-size:16px;margin:0 0 10px}.field{display:flex;flex-direction:column;gap:6px;margin:10px 0}.field input{width:100%;min-width:0;border:1px solid var(--line);border-radius:11px;padding:12px;background:#120d11;color:var(--text);font-size:14px}.row{display:flex;gap:8px;align-items:center}.row input{flex:1;min-width:0}.btn{border:0;border-radius:11px;padding:11px 14px;background:var(--wine);color:white;font-weight:bold;cursor:pointer}.btn.secondary{background:#35202b;border:1px solid var(--line)}.btn:disabled{opacity:.55;cursor:not-allowed}.status{padding:10px 12px;border-radius:10px;background:#2a1b24;color:#f4d9e5;font-size:13px;line-height:1.5}.status.error{background:#3a1b20;color:#ffd7d7}.messages{flex:1;min-height:260px;max-height:55vh;overflow:auto;display:flex;flex-direction:column;gap:9px;padding:12px;background:#140e13;border:1px solid var(--line);border-radius:15px}.message{max-width:85%;padding:10px 12px;border-radius:12px;line-height:1.5;overflow-wrap:anywhere}.mine{align-self:flex-start;background:#542139;border-top-right-radius:3px}.theirs{align-self:flex-end;background:#292128;border-top-left-radius:3px}.meta{font-size:10px;color:#d6b9c6;margin-top:5px}.empty{text-align:center;color:var(--muted);padding:40px 10px;font-size:13px}.compose{display:flex;gap:8px}.compose input{flex:1;min-width:0;border:1px solid var(--line);border-radius:24px;padding:13px 15px;background:var(--panel);color:var(--text);font-size:14px}.foot{font-size:11px;color:var(--muted);line-height:1.6}.hidden{display:none!important}a{color:#f39abd}
+</style>
+</head>
+<body>
+<main class="app">
+  <header class="head"><div><div class="brand">Retag Chat ♡</div><small>معاينة الرسائل بين حسابين</small></div><button id="signOut" class="btn secondary">خروج</button></header>
+  <section class="panel">
+    <h2>الحساب الحالي</h2>
+    <div id="account" class="muted">جارٍ التحقق من تسجيل الدخول…</div>
+    <div class="field"><label for="recipient">UUID حساب المستلم</label><input id="recipient" autocomplete="off" placeholder="الصقي UUID لحساب الاختبار الآخر"></div>
+    <div class="row"><button id="load" class="btn secondary">تحميل المحادثة</button><span id="connection" class="muted">غير متصل</span></div>
+  </section>
+  <div id="status" class="status">لازم تسجّلي الدخول أولًا من صفحة الحسابات التجريبية.</div>
+  <section id="messages" class="messages"><div class="empty">سجّلي الدخول واكتبي UUID حساب تاني لعرض المحادثة.</div></section>
+  <form id="compose" class="compose">
+    <input id="message" maxlength="4000" autocomplete="off" placeholder="اكتبي رسالة…" disabled>
+    <button id="send" class="btn" disabled>إرسال</button>
+  </form>
+  <div class="foot">نسخة اختبار منفصلة. الرسائل تُحفظ في جدول public.messages حسب سياسات RLS الموجودة في ملفات المشروع. يلزم حسابان حقيقيان، وUUID المستلم. لم يتم تشغيل SQL أو تغيير إعدادات Supabase. الصور والمرفقات غير مفعّلة في هذه المعاينة.</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="./retag-auth.js"></script>
+<script>
+"use strict";
+const auth = window.RetagAuth;
+const client = auth.client;
+const $ = (id) => document.getElementById(id);
+let currentUser = null;
+let channel = null;
+let loading = false;
+
+function showStatus(message, isError) {
+  const el = $("status");
+  el.textContent = message;
+  el.classList.toggle("error", Boolean(isError));
+}
+function validUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+}
+function displayMessages(rows) {
+  const box = $("messages");
+  box.replaceChildren();
+  if (!rows || rows.length === 0) {
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = "مفيش رسائل لسه. ابعتي أول رسالة.";
+    box.appendChild(empty);
+    return;
+  }
+  rows.forEach((row) => {
+    const bubble = document.createElement("article");
+    bubble.className = "message " + (row.sender_id === currentUser.id ? "mine" : "theirs");
+    const body = document.createElement("div");
+    body.textContent = row.content || "";
+    const meta = document.createElement("div");
+    meta.className = "meta";
+    const date = row.created_at ? new Date(row.created_at) : new Date();
+    meta.textContent = date.toLocaleString("ar-EG");
+    bubble.append(body, meta);
+    box.appendChild(bubble);
+  });
+  box.scrollTop = box.scrollHeight;
+}
+function setComposeEnabled(enabled) {
+  $("message").disabled = !enabled;
+  $("send").disabled = !enabled;
+}
+async function loadConversation() {
+  if (!currentUser) return showStatus("سجّلي الدخول الأول.", true);
+  const recipient = $("recipient").value.trim();
+  if (!validUuid(recipient)) return showStatus("UUID المستلم مش مكتوب بصيغة صحيحة.", true);
+  if (recipient === currentUser.id) return showStatus("استخدمي حسابًا تانيًا لاختبار الرسائل بين شخصين.", true);
+  if (loading) return;
+  loading = true;
+  $("load").disabled = true;
+  showStatus("جارٍ تحميل الرسائل…");
+  try {
+    const { data, error } = await client.from("messages")
+      .select("id,sender_id,receiver_id,content,created_at")
+      .or("and(sender_id.eq." + currentUser.id + ",receiver_id.eq." + recipient + "),and(sender_id.eq." + recipient + ",receiver_id.eq." + currentUser.id + ")")
+      .order("created_at", { ascending: true })
+      .limit(200);
+    if (error) throw error;
+    displayMessages(data || []);
+    setComposeEnabled(true);
+    $("connection").textContent = "المحادثة جاهزة";
+    showStatus("تم تحميل المحادثة. جرّبي إرسال رسالة قصيرة.");
+    subscribeToConversation(recipient);
+  } catch (error) {
+    setComposeEnabled(false);
+    showStatus("تعذّر تحميل الرسائل: " + (error.message || "خطأ غير معروف") + " — راجعي جدول messages وصلاحيات RLS.", true);
+  } finally {
+    loading = false;
+    $("load").disabled = false;
+  }
+}
+function subscribeToConversation(recipient) {
+  if (channel) client.removeChannel(channel);
+  channel = client.channel("retag-messages-" + currentUser.id + "-" + recipient)
+    .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
+      const row = payload.new || payload.old;
+      if (!row) return;
+      const isPair = (row.sender_id === currentUser.id && row.receiver_id === recipient)
+        || (row.sender_id === recipient && row.receiver_id === currentUser.id);
+      if (isPair) loadConversation();
+    })
+    .subscribe((state) => {
+      $("connection").textContent = state === "SUBSCRIBED" ? "متصل لحظيًا" : state;
+    });
+}
+$("load").addEventListener("click", loadConversation);
+$("compose").addEventListener("submit", async (event) => {
+  event.preventDefault();
+  if (!currentUser) return;
+  const recipient = $("recipient").value.trim();
+  const content = $("message").value.trim();
+  if (!validUuid(recipient) || recipient === currentUser.id || !content) return;
+  $("send").disabled = true;
+  try {
+    const { error } = await client.from("messages").insert({
+      sender_id: currentUser.id,
+      receiver_id: recipient,
+      content
+    });
+    if (error) throw error;
+    $("message").value = "";
+    showStatus("اترسلت الرسالة. لو الطرف التاني فاتح المحادثة هتظهر عنده.");
+    await loadConversation();
+  } catch (error) {
+    showStatus("فشل إرسال الرسالة: " + (error.message || "خطأ غير معروف") + " — تأكدي من سياسة INSERT في RLS.", true);
+  } finally {
+    $("send").disabled = false;
+  }
+});
+$("signOut").addEventListener("click", async () => {
+  const { error } = await auth.signOut();
+  if (error) showStatus("تعذّر تسجيل الخروج: " + error.message, true);
+  else location.href = "./account_preview.html";
+});
+auth.getSession().then(({ data, error }) => {
+  if (error) {
+    showStatus("تعذّر التحقق من الجلسة: " + error.message, true);
+    return;
+  }
+  currentUser = data.session && data.session.user;
+  if (!currentUser) {
+    $("account").textContent = "مش مسجّلة الدخول.";
+    setComposeEnabled(false);
+    showStatus("افتحي صفحة الحسابات وسجّلي الدخول أولًا.", true);
+    return;
+  }
+  $("account").textContent = (currentUser.email || "حساب مسجّل") + " — " + currentUser.id;
+  showStatus("تم تسجيل الدخول. اكتبي UUID حساب تاني ثم اضغطي تحميل المحادثة.");
+});
+auth.onAuthStateChange((_event, session) => {
+  currentUser = session && session.user;
+  if (!currentUser) {
+    setComposeEnabled(false);
+    $("account").textContent = "تم تسجيل الخروج.";
+    if (channel) client.removeChannel(channel);
+    channel = null;
+  }
+});
+</script>
+</body>
+</html>
