@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="theme-color" content="#16070d">
+  <title>Retag Chat — الحسابات</title>
+  <style>
+    :root{color-scheme:dark;--bg:#090709;--panel:#170d12;--panel2:#211018;--pink:#f18bb5;--wine:#791c3e;--line:#482234;--muted:#c4aeb8;--white:#fff7fa;--bad:#ff9b9b;--good:#9be3bd}
+    *{box-sizing:border-box}body{margin:0;min-height:100vh;background:radial-gradient(ellipse at top,#351323 0,#10090d 48%,#080708 100%);font-family:system-ui,-apple-system,"Segoe UI",Tahoma,sans-serif;color:var(--white);display:grid;place-items:center;padding:22px}
+    .wrap{width:min(100%,440px)}.brand{text-align:center;margin-bottom:22px}.logo{width:68px;height:68px;margin:0 auto 12px;border-radius:22px;display:grid;place-items:center;background:linear-gradient(145deg,#a32d59,#481126);box-shadow:0 12px 38px #0008;font-size:30px}.brand h1{font-size:27px;margin:0}.brand p{margin:8px 0 0;color:var(--muted);font-size:14px}
+    .card{background:linear-gradient(160deg,#21121aee,#100b0fee);border:1px solid var(--line);border-radius:24px;padding:24px;box-shadow:0 20px 65px #0008}
+    .tabs{display:grid;grid-template-columns:1fr 1fr;background:#0b080a;border:1px solid var(--line);padding:4px;border-radius:14px;margin-bottom:22px}.tabs button{border:0;background:transparent;color:var(--muted);padding:11px;border-radius:10px;font:inherit;cursor:pointer}.tabs button.active{background:var(--wine);color:white}
+    label{display:block;font-size:14px;margin:15px 0 7px;color:#f4dce6}input{width:100%;padding:14px 13px;border-radius:12px;border:1px solid var(--line);background:#0b080a;color:white;font:inherit;outline:none}input:focus{border-color:var(--pink);box-shadow:0 0 0 3px #f18bb522}
+    .primary{width:100%;border:0;border-radius:13px;padding:14px;margin-top:22px;background:linear-gradient(90deg,#8c2147,#bd4776);color:white;font:700 16px inherit;cursor:pointer}.primary:disabled{opacity:.55;cursor:wait}
+    .hint{font-size:12px;line-height:1.7;color:var(--muted);margin:14px 2px 0}.status{display:none;padding:12px 13px;border-radius:12px;margin-top:16px;font-size:13px;line-height:1.65;overflow-wrap:anywhere}.status.show{display:block}.status.error{background:#481b24;color:#ffd8dc;border:1px solid #813341}.status.ok{background:#102c22;color:#c7f6dc;border:1px solid #276348}.session{display:none;margin-top:18px;padding:15px;border-radius:14px;background:#100b0e;border:1px solid var(--line);line-height:1.8}.session.show{display:block}.session strong{color:var(--pink)}.secondary{width:100%;margin-top:12px;padding:12px;border:1px solid var(--line);border-radius:12px;background:#25131c;color:white;font:inherit;cursor:pointer}.foot{text-align:center;color:#a9919c;font-size:11px;margin-top:16px;line-height:1.7}
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <header class="brand">
+      <div class="logo" aria-hidden="true">♡</div>
+      <h1>𝓡𝓮𝓽𝓪𝓰𝓒𝓱𝓪𝓽</h1>
+      <p>حسابك الخاص — دخول آمن بالبريد الإلكتروني</p>
+    </header>
+    <section class="card" aria-label="إدارة الحساب">
+      <div class="tabs">
+        <button id="loginTab" class="active" type="button">تسجيل الدخول</button>
+        <button id="signupTab" type="button">إنشاء حساب</button>
+      </div>
+      <form id="authForm">
+        <div id="nameField" hidden>
+          <label for="displayName">الاسم الظاهر</label>
+          <input id="displayName" type="text" maxlength="40" autocomplete="name" placeholder="الاسم اللي هيظهر للناس">
+        </div>
+        <label for="email">البريد الإلكتروني</label>
+        <input id="email" type="email" autocomplete="email" required placeholder="name@example.com">
+        <label for="password">كلمة المرور</label>
+        <input id="password" type="password" minlength="8" autocomplete="current-password" required placeholder="8 أحرف على الأقل">
+        <button id="submitBtn" class="primary" type="submit">تسجيل الدخول</button>
+      </form>
+      <div id="message" class="status" role="status" aria-live="polite"></div>
+      <div id="sessionBox" class="session">
+        <div>حالة الحساب: <strong>تم تسجيل الدخول</strong></div>
+        <div>البريد: <span id="sessionEmail"></span></div>
+        <div>معرّف الحساب: <span id="sessionId"></span></div>
+        <button id="logoutBtn" class="secondary" type="button">تسجيل الخروج من هذا الجهاز</button>
+      </div>
+      <p class="hint">كل حساب مستقل. رقم الهاتف ليس اسم الدخول؛ يمكنك لاحقًا إضافته كبيان اختياري في الملف الشخصي. لا تشاركي كلمة المرور مع أي شخص.</p>
+    </section>
+    <p class="foot">نسخة اختبار منفصلة للحسابات — لا تغيّر صفحة التطبيق الأساسية أو بياناتها.</p>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script>
+    const SUPABASE_URL = "https://xyozmkrwapfhozdfsasg.supabase.co";
+    const SUPABASE_PUBLISHABLE_KEY = "sb_publishable_E-vBSfLso7SYBmPhAkt-aA_lMgBuzKr";
+    const client = window.supabase.createClient(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY);
+    const $ = (id) => document.getElementById(id);
+    let mode = "login";
+    function showMessage(text, type) {
+      const box = $("message");
+      box.textContent = text;
+      box.className = "status show " + type;
+    }
+    function setMode(next) {
+      mode = next;
+      $("loginTab").classList.toggle("active", mode === "login");
+      $("signupTab").classList.toggle("active", mode === "signup");
+      $("nameField").hidden = mode !== "signup";
+      $("submitBtn").textContent = mode === "login" ? "تسجيل الدخول" : "إنشاء الحساب";
+      $("password").autocomplete = mode === "login" ? "current-password" : "new-password";
+      $("message").className = "status";
+    }
+    $("loginTab").addEventListener("click", () => setMode("login"));
+    $("signupTab").addEventListener("click", () => setMode("signup"));
+    function renderSession(user) {
+      $("sessionBox").classList.toggle("show", !!user);
+      if (user) {
+        $("sessionEmail").textContent = user.email || "—";
+        $("sessionId").textContent = user.id;
+      }
+    }
+    $("authForm").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = $("submitBtn");
+      const email = $("email").value.trim();
+      const password = $("password").value;
+      button.disabled = true;
+      button.textContent = "لحظة واحدة...";
+      $("message").className = "status";
+      try {
+        if (mode === "signup") {
+          const displayName = $("displayName").value.trim();
+          if (!displayName) throw new Error("اكتبي الاسم الظاهر أولًا.");
+          const { data, error } = await client.auth.signUp({
+            email, password,
+            options: { data: { display_name: displayName } }
+          });
+          if (error) throw error;
+          if (data.session && data.user) {
+            renderSession(data.user);
+            showMessage("تم إنشاء الحساب وتسجيل الدخول بنجاح.", "ok");
+          } else {
+            showMessage("تم إرسال طلب إنشاء الحساب. افتحي رسالة التأكيد في بريدك الإلكتروني، وبعدها ارجعي وسجّلي الدخول.", "ok");
+          }
+        } else {
+          const { data, error } = await client.auth.signInWithPassword({ email, password });
+          if (error) throw error;
+          renderSession(data.user);
+          showMessage("تم تسجيل الدخول بنجاح.", "ok");
+        }
+      } catch (error) {
+        showMessage(error.message || "حصلت مشكلة. راجعي البيانات وحاولي مرة أخرى.", "error");
+      } finally {
+        button.disabled = false;
+        button.textContent = mode === "login" ? "تسجيل الدخول" : "إنشاء الحساب";
+      }
+    });
+    $("logoutBtn").addEventListener("click", async () => {
+      const { error } = await client.auth.signOut();
+      if (error) showMessage(error.message, "error");
+      else {
+        renderSession(null);
+        showMessage("تم تسجيل الخروج من هذا الجهاز.", "ok");
+      }
+    });
+    client.auth.getSession().then(({ data }) => renderSession(data.session?.user || null));
+    client.auth.onAuthStateChange((_event, session) => renderSession(session?.user || null));
+  </script>
+</body>
+</html>
