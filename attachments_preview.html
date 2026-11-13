@@ -117,7 +117,7 @@ $("compose").addEventListener("submit",async event=>{
    });
    if(recordError)throw new Error("اترفعت الصورة لكن ربطها بالرسالة فشل. احتفظي برسالة الخطأ لإصلاح السجل: "+recordError.message);
   }
-  $("message").value="";$("image").value="";status("تم إرسال الرسالة"+(file?" والصورة.":"."));await loadConversation();
+  $("message").value="";$("image").value="";status("تم إرسال الرسالة"+(file?" والصورة.":"."));busy=false;await loadConversation();
  }catch(e){
   status((e.message||"فشل الإرسال.")+(uploadedPath?" مسار الملف المرفوع يحتاج تنظيفًا بعد مراجعة الخطأ.":""),true);
  }finally{busy=false;enable(Boolean(activeRecipient));}
