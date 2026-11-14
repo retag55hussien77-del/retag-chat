@@ -34,3 +34,11 @@ This document describes prepared preview work only. It is not a production-readi
 4. Apply the recipient-safe image migration only after approval and then test both upload and download.
 5. Add remaining features incrementally, then integrate into the main app after acceptance tests.
 6. Prepare Android packaging and Google Play release only after the production app is complete and security-tested.
+
+
+## Profile and settings preview
+- Added `settings_preview.html` and `SETTINGS_PREVIEW_PROGRESS.md` on `feature/account-auth-preview`.
+- The profile section reads and can explicitly save the signed-in user's own `profiles` row (subject to live RLS/schema).
+- Account, privacy, chats, appearance, notifications, storage/data, and linked-devices sections are present as an isolated UI preview.
+- Non-profile settings switches are demo-only and do not persist; avatar upload and all platform-dependent features remain deferred pending schema, Storage, and security review.
+- No live SQL, Supabase settings, user records, or `main/index.html` were changed.
