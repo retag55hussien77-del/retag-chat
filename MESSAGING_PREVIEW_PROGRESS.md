@@ -4,6 +4,7 @@
 - `messages_preview.html` on `feature/account-auth-preview`.
 - It reuses `retag-auth.js` and requires an existing signed-in Supabase session.
 - It lets a tester enter the other account's Auth UUID, load the two-person conversation, send text messages, and listen for Realtime changes.
+- Clears the displayed conversation on account change/sign-out and ignores stale loads or Realtime callbacks from the prior session.
 - Message text is rendered with `textContent`, not HTML insertion.
 - Sender ID is always taken from the active authenticated session, never from a user-editable field.
 
