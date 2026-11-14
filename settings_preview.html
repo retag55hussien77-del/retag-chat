@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="theme-color" content="#10090e">
+<title>Retag Chat — Settings Preview</title>
+<style>
+:root{color-scheme:dark;--bg:#10090e;--panel:#1b1118;--panel2:#24151e;--line:#492236;--text:#fff1f6;--muted:#c5aab6;--wine:#8f2d50;--pink:#e16d9b;--green:#32c878}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font-family:Arial,Tahoma,sans-serif}.app{max-width:680px;min-height:100dvh;margin:auto;padding:14px;display:flex;flex-direction:column;gap:12px}.top,.panel,.nav{background:var(--panel);border:1px solid var(--line);border-radius:18px}.top{padding:17px;display:flex;align-items:center;justify-content:space-between;gap:12px}.brand{font-size:22px;font-weight:800}.muted,small{color:var(--muted)}.top small{display:block;margin-top:5px}.btn{border:0;border-radius:12px;padding:11px 14px;background:var(--wine);color:white;font-weight:bold;cursor:pointer;font:inherit}.btn.secondary{background:#35202b;border:1px solid var(--line)}.btn:disabled{opacity:.5}.nav{padding:8px;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:7px}.nav button{background:transparent;border:1px solid transparent;color:var(--muted);padding:12px 9px;border-radius:12px;text-align:right;font:inherit;cursor:pointer}.nav button.active{background:var(--panel2);border-color:var(--line);color:var(--text)}.panel{padding:17px}.panel h2{font-size:18px;margin:0 0 6px}.intro{font-size:13px;color:var(--muted);line-height:1.7;margin:0 0 14px}.profile-head{display:flex;align-items:center;gap:14px;padding:8px 0 18px}.avatar{width:76px;height:76px;border-radius:50%;background:linear-gradient(145deg,#6b2947,#251521);display:grid;place-items:center;font-size:28px;border:2px solid var(--pink)}.field{display:flex;flex-direction:column;gap:7px;margin:12px 0}.field input,.field textarea{width:100%;border:1px solid var(--line);border-radius:12px;padding:12px;background:#120c11;color:var(--text);font:inherit}.field textarea{min-height:84px;resize:vertical}.item{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px 0;border-bottom:1px solid var(--line)}.item:last-child{border:0}.item strong{display:block;font-size:15px}.item small{display:block;margin-top:5px;line-height:1.5}.switch{width:46px;height:26px;border-radius:20px;background:#493440;border:0;padding:3px;flex:none;cursor:pointer}.switch:after{content:"";display:block;width:20px;height:20px;border-radius:50%;background:#d6c4cd;transition:transform .15s}.switch[aria-checked=true]{background:var(--wine)}.switch[aria-checked=true]:after{background:white;transform:translateX(-20px)}.notice{padding:12px;border-radius:12px;background:#2a1b24;color:#f5dce7;font-size:13px;line-height:1.7;margin-top:12px}.notice.error{background:#3a1b20;color:#ffd7d7}.actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}.hidden{display:none!important}.foot{font-size:11px;color:var(--muted);line-height:1.8;padding:4px}.tag{display:inline-block;background:#35202b;color:#f5c5d8;border:1px solid var(--line);padding:4px 8px;border-radius:99px;font-size:11px}
+</style></head>
+<body><main class="app">
+<header class="top"><div><div class="brand">Retag Chat ♡</div><small>الملف الشخصي والإعدادات</small></div><button id="signOut" class="btn secondary">تسجيل خروج</button></header>
+<nav class="nav" id="nav">
+<button class="active" data-page="profile">👤 الملف الشخصي</button>
+<button data-page="account">🔐 الحساب</button>
+<button data-page="privacy">🛡️ الخصوصية</button>
+<button data-page="chats">💬 الدردشات</button>
+<button data-page="appearance">🎨 المظهر</button>
+<button data-page="notifications">🔔 الإشعارات</button>
+<button data-page="storage">📦 التخزين والبيانات</button>
+<button data-page="devices">📱 الأجهزة المرتبطة</button>
+</nav>
+<section class="panel" id="profile">
+<h2>ملفك الشخصي</h2><p class="intro">عدّلي الاسم واسم المستخدم والنبذة. صورة الحساب هتتضاف بعد مراجعة إعدادات التخزين والصلاحيات.</p>
+<div class="profile-head"><div class="avatar">♡</div><div><strong id="profileTitle">ملف Retag</strong><small id="emailLabel">جارٍ التحقق من الحساب…</small></div></div>
+<div class="field"><label for="displayName">الاسم الظاهر</label><input id="displayName" maxlength="60" placeholder="اسمك اللي هيظهر للناس"></div>
+<div class="field"><label for="username">اسم المستخدم</label><input id="username" maxlength="30" placeholder="مثال: retag_22" autocomplete="off"></div>
+<div class="field"><label for="bio">النبذة</label><textarea id="bio" maxlength="160" placeholder="اكتبي نبذة قصيرة عنك"></textarea></div>
+<div class="actions"><button id="saveProfile" class="btn">حفظ الملف الشخصي</button><a class="btn secondary" href="./contacts_preview.html" style="text-decoration:none">جهات الاتصال</a></div>
+</section>
+<section class="panel hidden" id="account"><h2>الحساب</h2><p class="intro">إعدادات الحساب الأساسية.</p><div class="item"><div><strong>حالة تسجيل الدخول</strong><small id="accountState">جارٍ التحقق…</small></div><span class="tag">Supabase Auth</span></div><div class="item"><div><strong>البريد الإلكتروني</strong><small id="accountEmail">—</small></div></div><div class="notice">تغيير كلمة المرور، تغيير البريد، وحذف الحساب غير مفعّلين في المعاينة؛ هنضيفهم بعد مراجعة إعدادات Auth والتأكيدات.</div><div class="actions"><a class="btn secondary" href="./account_preview.html" style="text-decoration:none">إدارة تسجيل الدخول</a></div></section>
+<section class="panel hidden" id="privacy"><h2>الخصوصية</h2><p class="intro">شكل مبدئي لإعدادات الخصوصية. المفاتيح التالية تجريبية ولا تغيّر صلاحيات قاعدة البيانات.</p><div class="item"><div><strong>إظهار آخر ظهور</strong><small>مين يقدر يشوف آخر ظهورك</small></div><button class="switch" role="switch" aria-checked="true" data-demo-switch></button></div><div class="item"><div><strong>إظهار صورة الملف الشخصي</strong><small>التحكم في ظهور الصورة</small></div><button class="switch" role="switch" aria-checked="true" data-demo-switch></button></div><div class="item"><div><strong>إشعارات قراءة الرسائل</strong><small>علامات قراءة الرسائل</small></div><button class="switch" role="switch" aria-checked="true" data-demo-switch></button></div><div class="notice">المفاتيح دي للعرض فقط حاليًا. إعدادات الخصوصية الحقيقية محتاجة أعمدة وسياسات RLS مناسبة واختبار بحسابين.</div></section>
+<section class="panel hidden" id="chats"><h2>الدردشات</h2><p class="intro">تفضيلات المحادثات.</p><div class="item"><div><strong>النسخ الاحتياطي</strong><small>إعداد النسخ الاحتياطي للمحادثات</small></div><span class="tag">قريبًا</span></div><div class="item"><div><strong>حفظ الوسائط في الجهاز</strong><small>التحكم في تنزيل الصور والملفات</small></div><button class="switch" role="switch" aria-checked="false" data-demo-switch></button></div><div class="item"><div><strong>خلفية المحادثة</strong><small>اختيار خلفية مخصصة</small></div><span class="tag">قريبًا</span></div></section>
+<section class="panel hidden" id="appearance"><h2>المظهر</h2><p class="intro">هوية Retag Chat الأساسية: الأسود والنبيتي والوردي.</p><div class="item"><div><strong>الوضع الداكن</strong><small>المظهر الافتراضي للتطبيق</small></div><span class="tag">مفعّل في التصميم</span></div><div class="item"><div><strong>لون المحادثات</strong><small>نبيتي مع لمسات وردية</small></div><span class="tag">افتراضي</span></div><div class="notice">اختيار ألوان إضافية وخلفيات مخصصة هيتفعّل بعد دمج المعاينة في التطبيق الأساسي.</div></section>
+<section class="panel hidden" id="notifications"><h2>الإشعارات</h2><p class="intro">تفضيلات التنبيهات المقترحة.</p><div class="item"><div><strong>إشعارات الرسائل</strong><small>تنبيه عند وصول رسالة جديدة</small></div><button class="switch" role="switch" aria-checked="true" data-demo-switch></button></div><div class="item"><div><strong>إشعارات المجموعات</strong><small>تنبيهات رسائل المجموعات</small></div><button class="switch" role="switch" aria-checked="true" data-demo-switch></button></div><div class="item"><div><strong>اهتزاز المكالمات</strong><small>تنبيه اهتزاز عند المكالمات</small></div><button class="switch" role="switch" aria-checked="false" data-demo-switch></button></div><div class="notice">المفاتيح شكل تجريبي فقط؛ إشعارات الهاتف الفعلية تحتاج إعداد Push Notifications وتطبيق Android.</div></section>
+<section class="panel hidden" id="storage"><h2>التخزين والبيانات</h2><p class="intro">إدارة الصور والملفات واستهلاك البيانات.</p><div class="item"><div><strong>رفع الصور</strong><small>مراجعة bucket وسياسات الوصول قبل التفعيل</small></div><span class="tag">مراجعة مطلوبة</span></div><div class="item"><div><strong>ضغط الصور</strong><small>تقليل حجم الصور قبل الرفع</small></div><span class="tag">قريبًا</span></div><div class="notice">لن نرفع ملفات أو نغيّر إعدادات Storage من صفحة المعاينة دي.</div></section>
+<section class="panel hidden" id="devices"><h2>الأجهزة المرتبطة</h2><p class="intro">عرض الأجهزة اللي سجلت الدخول لحسابك.</p><div class="item"><div><strong>إدارة الجلسات</strong><small>عرض الأجهزة وتسجيل الخروج منها</small></div><span class="tag">قريبًا</span></div><div class="notice">قائمة الأجهزة وتسجيل الخروج عن بُعد محتاجين تصميم جلسات آمن واختبار قبل التفعيل.</div></section>
+<div id="status" class="notice">جارٍ تحميل الحساب…</div>
+<div class="foot">دي صفحة معاينة منفصلة على فرع التجربة وليست تحديثًا للتطبيق الأساسي. حفظ الملف الشخصي لا يحدث إلا عند الضغط على زر الحفظ. باقي المفاتيح شكل تجريبي مؤقت ولا تحفظ إعدادات.</div>
+</main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script><script src="./retag-auth.js"></script>
+<script>
+"use strict";
+const auth=window.RetagAuth,client=auth.client,$=id=>document.getElementById(id);let me=null;
+function setStatus(message,error){$("status").textContent=message;$("status").classList.toggle("error",Boolean(error));}
+function showPage(name){document.querySelectorAll(".panel").forEach(p=>p.classList.toggle("hidden",p.id!==name));document.querySelectorAll("[data-page]").forEach(b=>b.classList.toggle("active",b.dataset.page===name));}
+document.querySelectorAll("[data-page]").forEach(b=>b.addEventListener("click",()=>showPage(b.dataset.page)));
+document.querySelectorAll("[data-demo-switch]").forEach(b=>b.addEventListener("click",()=>b.setAttribute("aria-checked",b.getAttribute("aria-checked")!=="true"?"true":"false")));
+async function loadProfile(){
+ const {data,error}=await client.from("profiles").select("id,username,display_name,bio").eq("id",me.id).maybeSingle();if(error)throw error;
+ $("displayName").value=data?.display_name||me.user_metadata?.display_name||"";
+ $("username").value=data?.username||"";$("bio").value=data?.bio||"";
+ $("profileTitle").textContent=data?.display_name||"ملف Retag";
+}
+async function saveProfile(){
+ const display_name=$("displayName").value.trim(),username=$("username").value.trim().replace(/^@/,""),bio=$("bio").value.trim();
+ if(!display_name){setStatus("اكتبي الاسم الظاهر الأول.",true);return;}
+ if(username&&!/^[a-zA-Z0-9_.]{3,30}$/.test(username)){setStatus("اسم المستخدم لازم يكون من 3 إلى 30 حرفًا أو رقمًا، ومسموح _ و .",true);return;}
+ $("saveProfile").disabled=true;
+ try{
+  const {data:existing,error:readError}=await client.from("profiles").select("id").eq("id",me.id).maybeSingle();if(readError)throw readError;
+  const payload={username:username||null,display_name,bio:bio||null};
+  const result=existing?await client.from("profiles").update(payload).eq("id",me.id):await client.from("profiles").insert({id:me.id,...payload});
+  if(result.error)throw result.error;
+  $("profileTitle").textContent=display_name;setStatus("اتحفظ ملفك الشخصي بنجاح.");
+ }catch(e){setStatus("تعذّر الحفظ: "+(e.message||"خطأ غير معروف"),true);}
+ finally{$("saveProfile").disabled=false;}
+}
+$("saveProfile").addEventListener("click",saveProfile);
+$("signOut").addEventListener("click",async()=>{const {error}=await auth.signOut();if(error)setStatus(error.message,true);else location.href="./account_preview.html";});
+auth.getSession().then(async({data,error})=>{
+ if(error){setStatus("تعذّر التحقق من الجلسة: "+error.message,true);return;}
+ me=data.session?.user;
+ if(!me){$("accountState").textContent="غير مسجّل";$("emailLabel").textContent="محتاج تسجيل دخول";$("saveProfile").disabled=true;setStatus("سجّلي الدخول من صفحة الحسابات الأول.",true);return;}
+ $("emailLabel").textContent="حسابك في Retag Chat";$("accountState").textContent="مسجّل الدخول";$("accountEmail").textContent=me.email||"البريد غير متاح";
+ try{await loadProfile();setStatus("تم تحميل بيانات الحساب. تقدري تعدّلي الملف الشخصي وتحفظيه وقت ما تحبي.");}
+ catch(e){setStatus("تعذّر تحميل الملف الشخصي: "+(e.message||"خطأ غير معروف"),true);}
+});
+auth.onAuthStateChange((_event,session)=>{if(!session){me=null;$("profileTitle").textContent="تم تسجيل الخروج";$("saveProfile").disabled=true;}});
+</script></body></html>
