@@ -42,3 +42,11 @@ This document describes prepared preview work only. It is not a production-readi
 - Account, privacy, chats, appearance, notifications, storage/data, and linked-devices sections are present as an isolated UI preview.
 - Non-profile settings switches are demo-only and do not persist; avatar upload and all platform-dependent features remain deferred pending schema, Storage, and security review.
 - No live SQL, Supabase settings, user records, or `main/index.html` were changed.
+
+
+## Supabase policy audit
+- Added `SUPABASE_POLICY_AUDIT.md` with the repository SQL review and partial policy inventory from user-provided Supabase screenshots.
+- Screenshots confirm RLS is enabled on `profiles` and `messages`, but show overlapping policy rows. Full expressions are clipped and still require a read-only inventory.
+- Key unresolved items: broad profile SELECT, sender-only message INSERT check, unrestricted sender UPDATE, and recipient access for private image objects.
+- Preferred image draft is `message_attachments_setup.sql`; `message_images_setup.sql` is an alternative and must not be combined with it.
+- No SQL or live Supabase changes were made; `main/index.html` remains untouched.
