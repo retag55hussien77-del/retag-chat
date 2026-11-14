@@ -32,7 +32,7 @@
 <script>
 "use strict";
 const auth=window.RetagAuth, client=auth.client, $=id=>document.getElementById(id);
-let currentUser=null, channel=null, activeRecipient=null, busy=false, objectUrls=[];
+let currentUser=null, channel=null, activeRecipient=null, busy=false, objectUrls=[], authEpoch=0;
 const MAX_BYTES=10*1024*1024;
 const ALLOWED=new Set(["image/jpeg","image/png","image/webp","image/gif"]);
 function status(message,error){$("status").textContent=message;$("status").classList.toggle("error",Boolean(error));}
@@ -40,21 +40,25 @@ function uuid(value){return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-
 function enable(value){$("message").disabled=!value;$("image").disabled=!value;$("send").disabled=!value;}
 function clearUrls(){objectUrls.forEach(URL.revokeObjectURL);objectUrls=[];}
 function addText(parent,tag,className,value){const el=document.createElement(tag);if(className)el.className=className;el.textContent=value;parent.appendChild(el);return el;}
-async function renderMessages(rows){
+async function renderMessages(rows, ownerId, epoch){
+ if(epoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
  const box=$("messages");clearUrls();box.replaceChildren();
  if(!rows.length){addText(box,"div","empty","مفيش رسائل لسه. ابعتي أول رسالة.");return;}
  const ids=rows.map(r=>r.id);
  let attachments=[];
  const {data,error}=await client.from("message_attachments").select("id,message_id,uploader_id,storage_path,media_type,byte_size,created_at").in("message_id",ids);
  if(error) throw new Error("تعذّر قراءة مرفقات الصور. غالبًا جدول message_attachments أو سياسات RLS لم تُجهّز بعد: "+error.message);
+ if(epoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
  attachments=data||[];
  const byMessage=new Map();
  attachments.forEach(a=>{if(!byMessage.has(a.message_id))byMessage.set(a.message_id,[]);byMessage.get(a.message_id).push(a);});
  for(const row of rows){
-  const bubble=document.createElement("article");bubble.className="message "+(row.sender_id===currentUser.id?"mine":"theirs");
+  if(epoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
+  const bubble=document.createElement("article");bubble.className="message "+(row.sender_id===ownerId?"mine":"theirs");
   addText(bubble,"div","",row.content||"");
   for(const item of (byMessage.get(row.id)||[])){
    const {data:file,error:downloadError}=await client.storage.from("chat-images").download(item.storage_path);
+   if(epoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
    if(downloadError){addText(bubble,"div","meta","الصورة غير متاحة لهذا الحساب: "+downloadError.message);continue;}
    const url=URL.createObjectURL(file);objectUrls.push(url);
    const img=document.createElement("img");img.src=url;img.alt="صورة مرفقة";img.loading="lazy";bubble.appendChild(img);
@@ -68,26 +72,39 @@ async function loadConversation(){
  if(!currentUser){status("سجّلي الدخول الأول.",true);return;}
  const recipient=$("recipient").value.trim();
  if(!uuid(recipient)||recipient===currentUser.id){status("اكتبي UUID صحيح لحساب مختلف.",true);return;}
- if(busy)return;busy=true;$("load").disabled=true;status("جارٍ تحميل المحادثة والصور…");
+ if(busy)return;
+ const ownerId=currentUser.id, requestEpoch=authEpoch;
+ busy=true;$("load").disabled=true;status("جارٍ تحميل المحادثة والصور…");
  try{
   const {data,error}=await client.from("messages").select("id,sender_id,receiver_id,content,created_at")
    .or("and(sender_id.eq."+currentUser.id+",receiver_id.eq."+recipient+"),and(sender_id.eq."+recipient+",receiver_id.eq."+currentUser.id+")")
    .order("created_at",{ascending:true}).limit(100);
   if(error)throw error;
-  await renderMessages(data||[]);enable(true);$("connection").textContent="المحادثة جاهزة";
+  if(requestEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
+  await renderMessages(data||[],ownerId,requestEpoch);
+  if(requestEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
+  enable(true);$("connection").textContent="المحادثة جاهزة";
   status("تم تحميل الرسائل. الصور تظهر فقط إذا كانت سجلات المرفقات وسياسات الوصول جاهزة.");
   if(activeRecipient!==recipient)subscribe(recipient);
- }catch(e){enable(false);status(e.message||"حصل خطأ أثناء تحميل المحادثة.",true);}
- finally{busy=false;$("load").disabled=false;}
+ }catch(e){
+  if(requestEpoch===authEpoch&&currentUser&&currentUser.id===ownerId){enable(false);status(e.message||"حصل خطأ أثناء تحميل المحادثة.",true);}
+ }
+ finally{
+  if(requestEpoch===authEpoch){busy=false;$("load").disabled=false;}
+ }
 }
 function subscribe(recipient){
- if(channel)client.removeChannel(channel);activeRecipient=recipient;
- channel=client.channel("retag-attachments-"+currentUser.id+"-"+recipient)
+ if(channel)client.removeChannel(channel);
+ const ownerId=currentUser.id, subscriptionEpoch=authEpoch;
+ activeRecipient=recipient;
+ channel=client.channel("retag-attachments-"+ownerId+"-"+recipient)
  .on("postgres_changes",{event:"*",schema:"public",table:"messages"},payload=>{
+  if(subscriptionEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
   const r=payload.new||payload.old;if(!r)return;
-  if((r.sender_id===currentUser.id&&r.receiver_id===recipient)||(r.sender_id===recipient&&r.receiver_id===currentUser.id))loadConversation();
+  if((r.sender_id===ownerId&&r.receiver_id===recipient)||(r.sender_id===recipient&&r.receiver_id===ownerId))loadConversation();
  })
  .on("postgres_changes",{event:"*",schema:"public",table:"message_attachments"},payload=>{
+  if(subscriptionEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
   const r=payload.new||payload.old;if(r)loadConversation();
  })
  .subscribe(state=>{$("connection").textContent=state==="SUBSCRIBED"?"متصل لحظيًا":state;});
@@ -99,28 +116,46 @@ $("compose").addEventListener("submit",async event=>{
  if(!uuid(recipient)||recipient===currentUser.id){status("اكتبي UUID صحيح لحساب مختلف.",true);return;}
  if(!text&&!file){status("اكتبي رسالة أو اختاري صورة.",true);return;}
  if(file&&(!ALLOWED.has(file.type)||file.size<=0||file.size>MAX_BYTES)){status("نوع الصورة غير مدعوم أو حجمها أكبر من 10 ميجابايت.",true);return;}
- busy=true;enable(false);status(file?"جارٍ إرسال الرسالة ورفع الصورة بأمان…":"جارٍ إرسال الرسالة…");
- let uploadedPath=null;
+ const ownerId=currentUser.id, requestEpoch=authEpoch;
+ busy=true;enable(false);$("signOut").disabled=true;status(file?"جارٍ إرسال الرسالة ورفع الصورة بأمان…":"جارٍ إرسال الرسالة…");
+ let uploadedPath=null,messageId=null;
  try{
   const {data:message,error:messageError}=await client.from("messages").insert({
-   sender_id:currentUser.id,receiver_id:recipient,content:text||(file?"📷 صورة":"")
+   sender_id:ownerId,receiver_id:recipient,content:text||(file?"📷 صورة":"")
   }).select("id").single();
   if(messageError)throw messageError;
+  messageId=message.id;
+  if(requestEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
   if(file){
    const ext=({ "image/jpeg":"jpg","image/png":"png","image/webp":"webp","image/gif":"gif"})[file.type];
    const path=currentUser.id+"/"+crypto.randomUUID()+"."+ext;
    const {error:uploadError}=await client.storage.from("chat-images").upload(path,file,{contentType:file.type,upsert:false});
    if(uploadError)throw new Error("اتسجلت الرسالة لكن رفع الصورة فشل: "+uploadError.message);
    uploadedPath=path;
+   if(requestEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
    const {error:recordError}=await client.from("message_attachments").insert({
     message_id:message.id,uploader_id:currentUser.id,storage_path:path,media_type:file.type,byte_size:file.size
    });
-   if(recordError)throw new Error("اترفعت الصورة لكن ربطها بالرسالة فشل. احتفظي برسالة الخطأ لإصلاح السجل: "+recordError.message);
+   if(recordError)throw new Error("اترفعت الصورة لكن ربطها بالرسالة فشل: "+recordError.message);
   }
+  if(requestEpoch!==authEpoch||!currentUser||currentUser.id!==ownerId)return;
   $("message").value="";$("image").value="";status("تم إرسال الرسالة"+(file?" والصورة.":"."));busy=false;await loadConversation();
  }catch(e){
-  status((e.message||"فشل الإرسال.")+(uploadedPath?" مسار الملف المرفوع يحتاج تنظيفًا بعد مراجعة الخطأ.":""),true);
- }finally{busy=false;enable(Boolean(activeRecipient));}
+  if(requestEpoch===authEpoch&&currentUser&&currentUser.id===ownerId){
+   const cleanup=[];
+   if(uploadedPath){
+    const {error:removeError}=await client.storage.from("chat-images").remove([uploadedPath]);
+    if(removeError)cleanup.push("تعذّر تنظيف الصورة المرفوعة: "+removeError.message);
+   }
+   if(requestEpoch===authEpoch&&currentUser&&currentUser.id===ownerId&&messageId&&!text){
+    const {error:deleteError}=await client.from("messages").delete().eq("id",messageId).eq("sender_id",ownerId);
+    if(deleteError)cleanup.push("تعذّر حذف رسالة الصورة غير المكتملة: "+deleteError.message);
+   }
+   status((e.message||"فشل الإرسال.")+(cleanup.length?" — "+cleanup.join(" — "):" تم تنظيف الجزء غير المكتمل إن أمكن."),true);
+  }
+ }finally{
+  if(requestEpoch===authEpoch){busy=false;enable(Boolean(activeRecipient));$("signOut").disabled=false;}
+ }
 });
 $("signOut").addEventListener("click",async()=>{const {error}=await auth.signOut();if(error)status(error.message,true);else location.href="./account_preview.html";});
 auth.getSession().then(({data,error})=>{
@@ -131,8 +166,19 @@ auth.getSession().then(({data,error})=>{
  status("تم تسجيل الدخول. اكتبي UUID حساب تاني لتحميل المحادثة.");
 });
 auth.onAuthStateChange((_event,session)=>{
- currentUser=session&&session.user;
- if(!currentUser){enable(false);$("account").textContent="تم تسجيل الخروج.";if(channel)client.removeChannel(channel);channel=null;activeRecipient=null;clearUrls();}
+ const nextUser=session&&session.user;
+ const previousId=currentUser&&currentUser.id, nextId=nextUser&&nextUser.id;
+ if(previousId!==nextId){
+  authEpoch++;currentUser=nextUser;busy=false;
+  if(channel)client.removeChannel(channel);
+  channel=null;activeRecipient=null;clearUrls();
+  $("messages").replaceChildren();
+  addText($("messages"),"div","empty",nextUser?"تم تغيير الحساب. اكتبي UUID جديدًا لتحميل محادثة آمنة.":"تم تسجيل الخروج.");
+  $("recipient").value="";$("connection").textContent="غير متصل";
+  enable(false);$("signOut").disabled=false;
+  $("account").textContent=nextUser?(nextUser.email||"حساب مسجّل")+" — "+nextUser.id:"تم تسجيل الخروج.";
+  status(nextUser?"تم تغيير الحساب. حمّلي المحادثة من جديد.":"تم تسجيل الخروج. تم مسح المحادثة المعروضة.");
+ }
 });
 window.addEventListener("beforeunload",clearUrls);
 </script>
