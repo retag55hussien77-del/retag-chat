@@ -38,6 +38,7 @@ let currentUser = null;
 let channel = null;
 let subscribedRecipient = null;
 let loading = false;
+let authEpoch = 0;
 const requestedRecipient = new URLSearchParams(location.search).get("to");
 if (requestedRecipient && /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(requestedRecipient)) $("recipient").value = requestedRecipient;
 
@@ -83,6 +84,7 @@ async function loadConversation() {
   if (!validUuid(recipient)) return showStatus("UUID المستلم مش مكتوب بصيغة صحيحة.", true);
   if (recipient === currentUser.id) return showStatus("استخدمي حسابًا تانيًا لاختبار الرسائل بين شخصين.", true);
   if (loading) return;
+  const ownerId = currentUser.id, requestEpoch = authEpoch;
   loading = true;
   $("load").disabled = true;
   showStatus("جارٍ تحميل الرسائل…");
@@ -93,28 +95,35 @@ async function loadConversation() {
       .order("created_at", { ascending: true })
       .limit(200);
     if (error) throw error;
+    if (requestEpoch !== authEpoch || !currentUser || currentUser.id !== ownerId) return;
     displayMessages(data || []);
     setComposeEnabled(true);
     $("connection").textContent = "المحادثة جاهزة";
     showStatus("تم تحميل المحادثة. جرّبي إرسال رسالة قصيرة.");
     if (subscribedRecipient !== recipient) subscribeToConversation(recipient);
   } catch (error) {
-    setComposeEnabled(false);
-    showStatus("تعذّر تحميل الرسائل: " + (error.message || "خطأ غير معروف") + " — راجعي جدول messages وصلاحيات RLS.", true);
+    if (requestEpoch === authEpoch && currentUser && currentUser.id === ownerId) {
+      setComposeEnabled(false);
+      showStatus("تعذّر تحميل الرسائل: " + (error.message || "خطأ غير معروف") + " — راجعي جدول messages وصلاحيات RLS.", true);
+    }
   } finally {
-    loading = false;
-    $("load").disabled = false;
+    if (requestEpoch === authEpoch) {
+      loading = false;
+      $("load").disabled = false;
+    }
   }
 }
 function subscribeToConversation(recipient) {
   if (channel) client.removeChannel(channel);
+  const ownerId = currentUser.id, subscriptionEpoch = authEpoch;
   subscribedRecipient = recipient;
-  channel = client.channel("retag-messages-" + currentUser.id + "-" + recipient)
+  channel = client.channel("retag-messages-" + ownerId + "-" + recipient)
     .on("postgres_changes", { event: "*", schema: "public", table: "messages" }, (payload) => {
+      if (subscriptionEpoch !== authEpoch || !currentUser || currentUser.id !== ownerId) return;
       const row = payload.new || payload.old;
       if (!row) return;
-      const isPair = (row.sender_id === currentUser.id && row.receiver_id === recipient)
-        || (row.sender_id === recipient && row.receiver_id === currentUser.id);
+      const isPair = (row.sender_id === ownerId && row.receiver_id === recipient)
+        || (row.sender_id === recipient && row.receiver_id === ownerId);
       if (isPair) loadConversation();
     })
     .subscribe((state) => {
@@ -128,21 +137,24 @@ $("compose").addEventListener("submit", async (event) => {
   const recipient = $("recipient").value.trim();
   const content = $("message").value.trim();
   if (!validUuid(recipient) || recipient === currentUser.id || !content) return;
+  const ownerId = currentUser.id, requestEpoch = authEpoch;
   $("send").disabled = true;
   try {
     const { error } = await client.from("messages").insert({
-      sender_id: currentUser.id,
+      sender_id: ownerId,
       receiver_id: recipient,
       content
     });
     if (error) throw error;
+    if (requestEpoch !== authEpoch || !currentUser || currentUser.id !== ownerId) return;
     $("message").value = "";
     showStatus("اترسلت الرسالة. لو الطرف التاني فاتح المحادثة هتظهر عنده.");
     await loadConversation();
   } catch (error) {
-    showStatus("فشل إرسال الرسالة: " + (error.message || "خطأ غير معروف") + " — تأكدي من سياسة INSERT في RLS.", true);
+    if (requestEpoch === authEpoch && currentUser && currentUser.id === ownerId)
+      showStatus("فشل إرسال الرسالة: " + (error.message || "خطأ غير معروف") + " — تأكدي من سياسة INSERT في RLS.", true);
   } finally {
-    $("send").disabled = false;
+    if (requestEpoch === authEpoch) $("send").disabled = false;
   }
 });
 $("signOut").addEventListener("click", async () => {
@@ -166,13 +178,25 @@ auth.getSession().then(({ data, error }) => {
   showStatus("تم تسجيل الدخول. اكتبي UUID حساب تاني ثم اضغطي تحميل المحادثة.");
 });
 auth.onAuthStateChange((_event, session) => {
-  currentUser = session && session.user;
-  if (!currentUser) {
-    setComposeEnabled(false);
-    $("account").textContent = "تم تسجيل الخروج.";
+  const nextUser = session && session.user;
+  const previousId = currentUser && currentUser.id, nextId = nextUser && nextUser.id;
+  if (previousId !== nextId) {
+    authEpoch++;
+    currentUser = nextUser;
+    loading = false;
     if (channel) client.removeChannel(channel);
     channel = null;
     subscribedRecipient = null;
+    setComposeEnabled(false);
+    $("messages").replaceChildren();
+    const empty = document.createElement("div");
+    empty.className = "empty";
+    empty.textContent = nextUser ? "تم تغيير الحساب. حمّلي المحادثة من جديد." : "تم تسجيل الخروج.";
+    $("messages").appendChild(empty);
+    $("recipient").value = "";
+    $("connection").textContent = "غير متصل";
+    $("account").textContent = nextUser ? (nextUser.email || "حساب مسجّل") + " — " + nextUser.id : "تم تسجيل الخروج.";
+    showStatus(nextUser ? "تم تغيير الحساب. اكتبي UUID جديدًا." : "تم تسجيل الخروج ومسح المحادثة المعروضة.", !nextUser);
   }
 });
 </script>
