@@ -10,13 +10,15 @@
 - Reads attachment metadata for conversation messages, then downloads through the authenticated Storage SDK and displays a temporary browser object URL.
 - Does not create public URLs or change the bucket to public.
 - Includes Realtime listeners for messages and attachment metadata.
+- Clears rendered messages and temporary image URLs on account change/sign-out; ignores stale asynchronous renders from a prior account.
+- Attempts best-effort cleanup of the uploaded object and an image-only placeholder message if image attachment registration fails.
 
 ## Important prerequisites
 - The existing `message_attachments_setup.sql` is a review draft only and has NOT been executed.
 - The live private bucket, exact messages schema, and all current RLS policies must be verified before testing.
 - Existing permissive policies may OR together and broaden access; audit all policies, not just the newly named ones.
 - Browser file checks are usability checks, not a replacement for server-side Storage limits and database constraints.
-- If the upload succeeds but the metadata insert fails, the uploaded object may remain orphaned and needs cleanup after reviewing the error.
+- Cleanup after a partial send is best-effort; if Storage deletion or message deletion is denied/fails, a manual orphan cleanup may still be needed.
 - This page is a technical preview, not a production-ready attachment system.
 
 ## Verification status
