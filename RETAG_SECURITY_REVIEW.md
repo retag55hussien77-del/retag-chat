@@ -46,3 +46,23 @@ Draft migration: `message_attachments_setup.sql`.
 - Realtime delivery between two users has not been tested.
 - Private image download by the recipient has not been tested.
 - No changes were made to `main` or `index.html`.
+
+
+## Additional audit decisions (2026-11-14)
+
+### Choose one image schema
+- `message_attachments_setup.sql` is the preferred normalized design: attachment rows are separate from message rows, can support multiple attachments per message, and authorize a recipient through the linked message.
+- `message_images_setup.sql` is an older alternative that adds `attachment_path`, `attachment_mime_type`, and `attachment_size_bytes` directly to `messages`. Do not execute both designs together. It creates a separate Storage SELECT policy and can leave a second authorization path active.
+
+### Additional controls required before production
+- `message_attachments_setup.sql` validates the metadata `byte_size` value, but the browser supplies that value. Confirm/configure the bucket's server-side `file_size_limit` and `allowed_mime_types`; client checks and metadata checks alone do not prove the uploaded object's actual size or MIME type.
+- The message INSERT policy still needs server-side receiver validation: reject self-messages and ensure `receiver_id` identifies a real, permitted account. A database foreign key/check or narrowly scoped server-side function should enforce this after the live schema is inspected.
+- Do not leave broad message UPDATE access in place. If editing is not being built yet, withhold it; otherwise use a narrowly scoped operation that cannot change sender, receiver, or creation time.
+- The `profiles` read-all policy also exposes any future/private profile columns such as `contact_phone`. Keep private contact fields out of discoverable profile reads.
+
+### Preview hardening added
+- Both messaging previews now clear the visible conversation when the signed-in account changes or signs out.
+- In-flight reads and Realtime callbacks are tied to the account identity so stale results from a previous session are ignored.
+- The image preview now attempts to remove an uploaded object and an image-only placeholder message if attachment registration fails. Cleanup is best-effort and still needs live testing.
+
+These changes are static repository work only; they do not establish the live Supabase policy state or prove two-account delivery.
