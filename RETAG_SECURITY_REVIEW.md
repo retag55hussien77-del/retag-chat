@@ -66,3 +66,14 @@ Draft migration: `message_attachments_setup.sql`.
 - The image preview now attempts to remove an uploaded object and an image-only placeholder message if attachment registration fails. Cleanup is best-effort and still needs live testing.
 
 These changes are static repository work only; they do not establish the live Supabase policy state or prove two-account delivery.
+
+
+## Dashboard screenshot audit (2026-11-14)
+- User-provided Supabase Policies screenshots show RLS enabled for both `public.profiles` and `public.messages`.
+- The screenshots visibly show multiple overlapping SELECT/INSERT/UPDATE policy rows on profiles and SELECT/INSERT/UPDATE/DELETE rows on messages. Mobile clipping prevents reliable recovery of complete policy names or expressions; no policy was deleted or assumed safe/unsafe from its truncated label.
+- Full findings and the partial screenshot inventory are documented in `SUPABASE_POLICY_AUDIT.md`.
+- Treat overlapping permissive policies as a priority audit item because they may OR together and broaden access.
+- The base profile SELECT policy remains broad (`USING (true)`); keep private fields such as contact_phone out of any discoverable profile projection.
+- The base message INSERT check does not validate receiver existence/eligibility; the sender UPDATE policy is not column-restricted.
+- `message_attachments_setup.sql` remains the preferred private-image design draft; `message_images_setup.sql` is an alternative. Do not run both.
+- No SQL was executed and no live Supabase settings, policies, bucket configuration, or user data were changed. The screenshots do not substitute for a full policy export.
